@@ -9,6 +9,7 @@ on:
       - 'config/global_device_admission.php'
       - 'resources/lua/global_device_lease.lua'
       - '.github/workflows/global-device-admission.yml'
+      - 'tests/global-device-redis-laravel.php'
   push:
     branches:
       - 'feature/global-device-admission-v105'
@@ -38,3 +39,37 @@ jobs:
           test "$(head -n 1 /tmp/device-grant)" = 1
           redis-cli -p 6399 --eval resources/lua/global_device_lease.lua global_admission_ci:test , acquire 'nodeB:b' '192.0.2.2' 1 5000 | tee /tmp/device-denied
           test "$(head -n 1 /tmp/device-denied)" = 0
+
+  laravel-redis-integration:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      CACHE_STORE: array
+      CACHE_DRIVER: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: '6379'
+      REDIS_PASSWORD: ''
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PHP and Redis extension
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: redis, pdo_sqlite, mbstring, xml, curl, zip, bcmath
+          coverage: none
+      - name: Install Laravel vendor packages
+        run: composer install --no-interaction --prefer-dist --no-progress --no-scripts
+      - name: Execute actual Laravel Redis lease service
+        run: php tests/global-device-redis-laravel.php
