@@ -40,10 +40,7 @@ class DeviceAdmissionController extends Controller
         $userId = (int) $data['user_id'];
         // Resolve limits from the panel, never trust a device limit sent
         // by a remote node. This includes the server's group and traffic rules.
-        $user = ServerService::getAvailableUsers($node)
-            ->first(function ($candidate) use ($userId) {
-                return (int) $candidate->id === $userId;
-            });
+        $user = ServerService::getAvailableUserForAdmission($node, $userId);
         if (!$user || (int) $user->device_limit <= 0) {
             return response()->json(['allowed' => false, 'error' => 'user_not_eligible'], 403);
         }
