@@ -10,6 +10,7 @@ on:
       - 'resources/lua/global_device_lease.lua'
       - '.github/workflows/global-device-admission.yml'
       - 'tests/global-device-redis-laravel.php'
+      - 'tests/global-device-http-laravel.php'
   push:
     branches:
       - 'feature/global-device-admission-v105'
@@ -74,3 +75,5 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-progress --no-scripts
       - name: Execute actual Laravel Redis lease service
         run: php tests/global-device-redis-laravel.php
+      - name: Exercise HTTP kernel machine auth and device eligibility
+        run: php tests/global-device-http-laravel.php
