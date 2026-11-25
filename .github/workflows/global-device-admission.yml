@@ -1,0 +1,40 @@
+name: Global device admission panel checks
+
+on:
+  pull_request:
+    paths:
+      - 'app/Http/Controllers/V2/Server/DeviceAdmissionController.php'
+      - 'app/Services/GlobalDeviceAdmissionService.php'
+      - 'app/Http/Routes/V2/ServerRoute.php'
+      - 'config/global_device_admission.php'
+      - 'resources/lua/global_device_lease.lua'
+      - '.github/workflows/global-device-admission.yml'
+  push:
+    branches:
+      - 'feature/global-device-admission-v105'
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint new PHP files and route
+        run: |
+          php -l app/Services/GlobalDeviceAdmissionService.php
+          php -l app/Http/Controllers/V2/Server/DeviceAdmissionController.php
+          php -l app/Http/Routes/V2/ServerRoute.php
+          php -l config/global_device_admission.php
+      - name: Confirm default-off guard
+        run: |
+          grep -F "env('GLOBAL_DEVICE_ADMISSION_ENABLED', false)" config/global_device_admission.php
+          grep -F "config('global_device_admission.enabled', false)" app/Http/Controllers/V2/Server/DeviceAdmissionController.php
+      - name: Redis Lua integration contract
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y redis-server redis-tools
+          redis-server --port 6399 --daemonize yes
+          test "$(redis-cli -p 6399 PING)" = PONG
+          redis-cli -p 6399 --eval resources/lua/global_device_lease.lua global_admission_ci:test , acquire 'nodeA:a' '192.0.2.1' 1 5000 | tee /tmp/device-grant
+          test "$(head -n 1 /tmp/device-grant)" = 1
+          redis-cli -p 6399 --eval resources/lua/global_device_lease.lua global_admission_ci:test , acquire 'nodeB:b' '192.0.2.2' 1 5000 | tee /tmp/device-denied
+          test "$(head -n 1 /tmp/device-denied)" = 0
