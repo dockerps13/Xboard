@@ -59,6 +59,7 @@ jobs:
       REDIS_HOST: 127.0.0.1
       REDIS_PORT: '6379'
       REDIS_PASSWORD: ''
+      REDIS_PREFIX: 'ga_ci_scoped_'
       DB_CONNECTION: sqlite
       DB_DATABASE: ':memory:'
     steps:
