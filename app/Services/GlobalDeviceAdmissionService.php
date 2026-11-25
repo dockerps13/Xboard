@@ -45,16 +45,14 @@ class GlobalDeviceAdmissionService
 
         $args = [$action, $owner, $ip, (string) $limit, (string) $ttlMs];
         $client = config('database.redis.client', 'phpredis');
-
-        if ($client === 'phpredis') {
-            // PhpRedis eval(string $script, array $args, int $numKeys)
-            $raw = Redis::eval($lua, array_merge([$key], $args), 1);
-        } elseif ($client === 'predis') {
-            // Predis EVAL script numkeys key [arg ...]
-            $raw = Redis::eval($lua, 1, $key, ...$args);
-        } else {
+        if (!in_array($client, ['phpredis', 'predis'], true)) {
             throw new RuntimeException('Unsupported Redis driver');
         }
+
+        // Laravel's Redis connection API (NOT the raw phpredis client)
+        // expects eval($script, $numberOfKeys, $key, ...$arguments).
+        // Laravel handles key prefixing and the underlying driver format.
+        $raw = Redis::eval($lua, 1, $key, ...$args);
 
         if (!is_array($raw) || count($raw) !== 3) {
             throw new RuntimeException('Unexpected Redis lease reply');
