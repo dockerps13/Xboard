@@ -17,6 +17,12 @@ $app->make(Kernel::class)->bootstrap();
 if (config('database.default') !== 'sqlite' || !str_contains((string) config('database.connections.sqlite.database'), 'v105-stage')) {
     throw new RuntimeException('Refusing to initialize a non-staging database');
 }
+// Global HTTP InitializePlugins middleware queries this table even when no
+// plugins are installed. Keep the isolated staging fixture empty.
+Schema::create('v2_plugins', static function (Blueprint $t): void {
+    $t->increments('id');
+    $t->boolean('is_enabled')->default(false);
+});
 Schema::create('v2_server_machine', static function (Blueprint $t): void {
     $t->increments('id');
     $t->string('name')->nullable();
