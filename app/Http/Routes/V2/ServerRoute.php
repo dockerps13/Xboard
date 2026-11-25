@@ -6,6 +6,7 @@ use App\Http\Controllers\V1\Server\TrojanTidalabController;
 use App\Http\Controllers\V1\Server\UniProxyController;
 use App\Http\Controllers\V2\Server\ServerController;
 use App\Http\Controllers\V2\Server\MachineController;
+use App\Http\Controllers\V2\Server\DeviceAdmissionController;
 use Illuminate\Contracts\Routing\Registrar;
 
 class ServerRoute
@@ -18,6 +19,8 @@ class ServerRoute
         ], function ($route) {
             $route->match(['GET', 'POST'], 'handshake', [ServerController::class, 'handshake']);
             $route->post('report', [ServerController::class, 'report']);
+            // Machine-authenticated global device lease, disabled by default.
+            $route->post('device-lease', [DeviceAdmissionController::class, 'lease']);
             $route->get('config', [UniProxyController::class, 'config']);
             $route->get('user', [UniProxyController::class, 'user']);
             $route->post('push', [UniProxyController::class, 'push']);
