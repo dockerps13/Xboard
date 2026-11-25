@@ -105,6 +105,20 @@ try {
     $assert($status===422,'invalid lease ID unexpectedly accepted: '.$status);
     [$status,$reply] = $send(array_merge($base,['action'=>'release','ip'=>null]));
     $assert($status===200, 'release endpoint failed: '.json_encode([$status,$reply]));
+    // After reducing the live account limit from 2 to 1, a renewal must
+    // immediately revoke a deterministic excess-IP lease.
+    [$status, $reply] = $send(array_merge($base, ['lease_id'=>'quota-owner-000001']));
+    $assert($status===200 && ($reply['allowed']??false), 'reacquire first IP before quota shrink');
+    DB::table('v2_user')->where('id', 7)->update(['device_limit'=>1]);
+    [$status, $reply] = $send(array_merge($base, [
+        'machine_id'=>202, 'node_id'=>22, 'token'=>'secret-b',
+        'action'=>'renew', 'lease_id'=>'test-owner-000002', 'ip'=>null,
+    ]));
+    $assert($status===200 && ($reply['allowed']??true)===false, 'excess lease renewed after quota shrink: '.json_encode([$status,$reply]));
+    [$status, $reply] = $send(array_merge($base, [
+        'action'=>'renew', 'lease_id'=>'quota-owner-000001', 'ip'=>null,
+    ]));
+    $assert($status===200 && ($reply['allowed']??false), 'surviving lease did not renew');
     echo "PASS: real Laravel HTTP kernel, machine auth, Redis leases, authorization denial\n";
 } finally {
     foreach ($keys as $key) {
