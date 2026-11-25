@@ -111,6 +111,44 @@ class ServerService
         return HookManager::filter('server.users.get', $users, $node);
     }
 
+    /**
+     * Authorize one candidate user for the global lease endpoint.
+     *
+     * Unlike getAvailableUsers(), this never fetches an entire node's users
+     * for each acquisition/renewal. It deliberately applies the same SQL
+     * eligibility rules and the existing server.users.get plugin filter.
+     *
+     * Plugins that require the full collection context need separate
+     * compatibility review before enabling strict mode in production.
+     */
+    public static function getAvailableUserForAdmission(Server $node, int $userId)
+    {
+        $groupIds = $node->group_ids ?? [];
+        if ($userId <= 0 || empty($groupIds)) {
+            return null;
+        }
+        $users = User::toBase()
+            ->where('id', $userId)
+            ->whereIn('group_id', $groupIds)
+            ->whereRaw('u + d < transfer_enable')
+            ->where(function ($query) {
+                $query->where('expired_at', '>=', time())
+                    ->orWhereNull('expired_at');
+            })
+            ->where('banned', 0)
+            ->select(['id', 'uuid', 'speed_limit', 'device_limit'])
+            ->get();
+        $filtered = HookManager::filter('server.users.get', $users, $node);
+        // Plugins must never insert a different user and obtain a lease for
+        // an unvalidated account. Fail closed for incompatible hook output.
+        if (!$filtered instanceof Collection) {
+            return null;
+        }
+        return $filtered->first(function ($candidate) use ($userId) {
+            return isset($candidate->id) && (int) $candidate->id === $userId;
+        });
+    }
+
     // 获取路由规则
     public static function getRoutes(array $routeIds)
     {
