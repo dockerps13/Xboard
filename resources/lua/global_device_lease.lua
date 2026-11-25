@@ -65,6 +65,49 @@ for i = 1, #all, 2 do
     end
 end
 
+
+-- A lowered account limit must be enforced on the very next authority
+-- operation. Select survivor IPs deterministically (lexicographic order),
+-- keeping *all* owners of each surviving IP. Evicted owners fail their next
+-- renewal and their node revokes the corresponding live connections.
+-- Do not trust stale client-side limit snapshots.
+if count > limit then
+    local ordered = {}
+    for activeIP in pairs(distinct) do
+        ordered[#ordered + 1] = activeIP
+    end
+    table.sort(ordered)
+    local keep = {}
+    for i = 1, limit do
+        keep[ordered[i]] = true
+    end
+    distinct = {}
+    count = 0
+    maxExpiry = 0
+    for i = 1, #all, 2 do
+        local token = all[i]
+        local value = all[i + 1]
+        local sep = string.find(value, "|", 1, true)
+        local expiry = sep and tonumber(string.sub(value, sep + 1)) or nil
+        if expiry and expiry > now then
+            local leaseIP = string.sub(value, 1, sep - 1)
+            if not keep[leaseIP] then
+                redis.call("HDEL", key, token)
+                if token == owner then
+                    currentIP = nil
+                    currentExpiry = nil
+                end
+            else
+                if not distinct[leaseIP] then
+                    distinct[leaseIP] = true
+                    count = count + 1
+                end
+                if expiry > maxExpiry then maxExpiry = expiry end
+            end
+        end
+    end
+end
+
 if action == "release" then
     if currentIP then
         redis.call("HDEL", key, owner)
