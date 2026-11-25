@@ -119,6 +119,19 @@ try {
         'action'=>'renew', 'lease_id'=>'quota-owner-000001', 'ip'=>null,
     ]));
     $assert($status===200 && ($reply['allowed']??false), 'surviving lease did not renew');
+    // A plugin must not make an otherwise ineligible injected user pass
+    // the single-user authorization check.
+    $node = \\App\\Models\\Server::findOrFail(11);
+    $filter = static function ($users, $ignoredNode) {
+        return collect([(object) ['id'=>8, 'device_limit'=>1]]);
+    };
+    \\App\\Services\\Plugin\\HookManager::registerFilter('server.users.get', $filter);
+    try {
+        $candidate = \\App\\Services\\ServerService::getAvailableUserForAdmission($node, 7);
+        $assert($candidate === null, 'plugin injected different account into admission');
+    } finally {
+        \\App\\Services\\Plugin\\HookManager::remove('server.users.get', $filter);
+    }
     echo "PASS: real Laravel HTTP kernel, machine auth, Redis leases, authorization denial\n";
 } finally {
     foreach ($keys as $key) {
